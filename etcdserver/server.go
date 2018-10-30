@@ -258,6 +258,7 @@ type EtcdServer struct {
 // configuration is considered static for the lifetime of the EtcdServer.
 // 根据配置创建一个新的EtcdServer，所有配置在EtcdServer的生命周期中都是静态的
 func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
+	// 创建V2版本存储
 	st := store.New(StoreClusterPrefix, StoreKeysPrefix)
 
 	var (
@@ -283,6 +284,7 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 	}
 	ss := snap.New(cfg.SnapDir())
 
+	// snap下的db目录，v3版本使用
 	bepath := cfg.backendPath()
 	beExist := fileutil.Exist(bepath)
 	be := openBackend(cfg)
@@ -318,14 +320,15 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 		if err = membership.ValidateClusterAndAssignIDs(cl, existingCluster); err != nil {
 			return nil, fmt.Errorf("error validating peerURLs %s: %v", existingCluster, err)
 		}
+		// 检查集群版本是否兼容
 		if !isCompatibleWithCluster(cl, cl.MemberByName(cfg.Name).ID, prt) {
 			return nil, fmt.Errorf("incompatible with current running cluster")
 		}
 
 		remotes = existingCluster.Members()
 		cl.SetID(existingCluster.ID())
-		cl.SetStore(st)
-		cl.SetBackend(be)
+		cl.SetStore(st)   // V2版本存储
+		cl.SetBackend(be) // V3版本存储
 		cfg.Print()
 		id, n, s, w = startNode(cfg, cl, nil)
 	case !haveWAL && cfg.NewCluster:
@@ -479,6 +482,7 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 		return nil, err
 	}
 	srv.authStore = auth.NewAuthStore(srv.be, tp)
+	// 启动定时压缩，V3版本数据需要定期压缩,V2版本不需要压缩
 	if num := cfg.AutoCompactionRetention; num != 0 {
 		srv.compactor, err = compactor.New(cfg.AutoCompactionMode, num, srv.kv, srv)
 		if err != nil {
@@ -487,6 +491,7 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 		srv.compactor.Run()
 	}
 
+	// 加载报警信息
 	srv.applyV3Base = srv.newApplierV3Backend()
 	if err = srv.restoreAlarms(); err != nil {
 		return nil, err
@@ -514,6 +519,7 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 			tr.AddRemote(m.ID, m.PeerURLs)
 		}
 	}
+	// 添加所有对端member
 	for _, m := range cl.Members() {
 		if m.ID != id {
 			tr.AddPeer(m.ID, m.PeerURLs)
@@ -692,6 +698,7 @@ type raftReadyHandler struct {
 }
 
 func (s *EtcdServer) run() {
+	// 快照
 	sn, err := s.r.raftStorage.Snapshot()
 	if err != nil {
 		plog.Panicf("get snapshot from raft storage error: %v", err)
@@ -804,8 +811,9 @@ func (s *EtcdServer) run() {
 
 	for {
 		select {
-		case ap := <-s.r.apply():
+		case ap := <-s.r.apply(): // raft apply
 			f := func(context.Context) { s.applyAll(&ep, &ap) }
+			// 开始调度
 			sched.Schedule(f)
 		case leases := <-expiredLeaseC:
 			s.goAttach(func() {
@@ -820,6 +828,7 @@ func (s *EtcdServer) run() {
 					lid := lease.ID
 					s.goAttach(func() {
 						ctx := s.authStore.WithRoot(s.ctx)
+						// 解除租约
 						_, lerr := s.LeaseRevoke(ctx, &pb.LeaseRevokeRequest{ID: int64(lid)})
 						if lerr == nil {
 							leaseExpired.Inc()

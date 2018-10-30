@@ -66,8 +66,8 @@ const (
 
 // Etcd contains a running etcd server and its listeners.
 type Etcd struct {
-	Peers   []*peerListener
-	Clients []net.Listener
+	Peers   []*peerListener // 监听集群成员间请求的文件描述符集合
+	Clients []net.Listener  // 本节点监听客户端请求的文件描述符集合
 	// a map of contexts for the servers that serves client requests.
 	sctxs            map[string]*serveCtx
 	metricsListeners []net.Listener

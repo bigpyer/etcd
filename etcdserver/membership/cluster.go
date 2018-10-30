@@ -54,6 +54,7 @@ type RaftCluster struct {
 	removed map[types.ID]bool
 }
 
+// NewClusterFromURLsMap 根据给定的token、url集合创建集群
 func NewClusterFromURLsMap(token string, urlsmap types.URLsMap) (*RaftCluster, error) {
 	c := NewCluster(token)
 	for name, urls := range urlsmap {
@@ -66,10 +67,12 @@ func NewClusterFromURLsMap(token string, urlsmap types.URLsMap) (*RaftCluster, e
 		}
 		c.members[m.ID] = m
 	}
+	// 生成集群ID
 	c.genID()
 	return c, nil
 }
 
+// NewClusterFromMembers 根据所给token、id、members信息构建集群
 func NewClusterFromMembers(token string, id types.ID, membs []*Member) *RaftCluster {
 	c := NewCluster(token)
 	c.id = id
@@ -79,6 +82,7 @@ func NewClusterFromMembers(token string, id types.ID, membs []*Member) *RaftClus
 	return c
 }
 
+// NewCluster 根据给定token创建集群
 func NewCluster(token string) *RaftCluster {
 	return &RaftCluster{
 		token:   token,
