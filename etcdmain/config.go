@@ -91,6 +91,7 @@ type configFlags struct {
 	proxy        *flags.StringsFlag
 }
 
+// 定义入口配置
 func newConfig() *config {
 	cfg := &config{
 		ec: *embed.NewConfig(),
@@ -226,6 +227,7 @@ func newConfig() *config {
 	return cfg
 }
 
+// 解析入口配置
 func (cfg *config) parse(arguments []string) error {
 	perr := cfg.cf.flagSet.Parse(arguments)
 	switch perr {
@@ -332,6 +334,7 @@ func (cfg *config) mayBeProxy() bool {
 	return cfg.cp.Proxy != proxyFlagOff || mayFallbackToProxy
 }
 
+// 校验配置
 func (cfg *config) validate() error {
 	err := cfg.ec.Validate()
 	// TODO(yichengq): check this for joining through discovery service case

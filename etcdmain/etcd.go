@@ -94,6 +94,8 @@ func startEtcdOrProxyV2() {
 		plog.Warningf("no data-dir provided, using default data-dir ./%s", cfg.ec.Dir)
 	}
 
+	// 如果指定了目录且目录不为空，按照目录名称推断的类型进行启动
+	// 如果目录为空，则按照配置类型进行启动
 	which := identifyDataDirOrDie(cfg.ec.Dir)
 	if which != dirEmpty {
 		plog.Noticef("the server is already initialized as %v before, starting as etcd %v...", which, which)

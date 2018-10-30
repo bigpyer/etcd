@@ -23,10 +23,13 @@ import (
 	systemdutil "github.com/coreos/go-systemd/util"
 )
 
+// Main 程序入口
 func Main() {
+	// 检查平台兼容性
 	checkSupportArch()
 
 	if len(os.Args) > 1 {
+		// 确定服务模式
 		cmd := os.Args[1]
 		if covArgs := os.Getenv("ETCDCOV_ARGS"); len(covArgs) > 0 {
 			args := strings.Split(os.Getenv("ETCDCOV_ARGS"), "\xe7\xcd")[1:]
@@ -43,6 +46,7 @@ func Main() {
 		}
 	}
 
+	// 启动etcd或代理服务
 	startEtcdOrProxyV2()
 }
 

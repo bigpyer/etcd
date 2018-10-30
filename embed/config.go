@@ -89,6 +89,7 @@ func init() {
 }
 
 // Config holds the arguments for configuring an etcd server.
+// etcd所持有的运行时配置
 type Config struct {
 	// member
 
@@ -451,6 +452,7 @@ func updateCipherSuites(tls *transport.TLSInfo, ss []string) error {
 }
 
 // Validate ensures that '*embed.Config' fields are properly configured.
+// Validate 确保'*embed.Config'字段设置合理
 func (cfg *Config) Validate() error {
 	if err := checkBindURLs(cfg.LPUrls); err != nil {
 		return err

@@ -111,9 +111,11 @@ func StartEtcd(inCfg *Config) (e *Etcd, err error) {
 		e = nil
 	}()
 
+	// 监听集群交互端口
 	if e.Peers, err = startPeerListeners(cfg); err != nil {
 		return e, err
 	}
+	// 监听对外服务端口
 	if e.sctxs, err = startClientListeners(cfg); err != nil {
 		return e, err
 	}
@@ -195,12 +197,15 @@ func StartEtcd(inCfg *Config) (e *Etcd, err error) {
 	}
 	e.Server.Start()
 
+	// 处理节点间请求
 	if err = e.servePeers(); err != nil {
 		return e, err
 	}
+	// 处理客户端请求
 	if err = e.serveClients(); err != nil {
 		return e, err
 	}
+	// prometheus监控
 	if err = e.serveMetrics(); err != nil {
 		return e, err
 	}

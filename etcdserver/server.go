@@ -256,6 +256,7 @@ type EtcdServer struct {
 
 // NewServer creates a new EtcdServer from the supplied configuration. The
 // configuration is considered static for the lifetime of the EtcdServer.
+// 根据配置创建一个新的EtcdServer，所有配置在EtcdServer的生命周期中都是静态的
 func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 	st := store.New(StoreClusterPrefix, StoreKeysPrefix)
 
@@ -607,6 +608,7 @@ func (s *EtcdServer) start() {
 	go s.run()
 }
 
+// 定期清理wal、snap文件
 func (s *EtcdServer) purgeFile() {
 	var dberrc, serrc, werrc <-chan error
 	if s.Cfg.MaxSnapFiles > 0 {
@@ -628,8 +630,10 @@ func (s *EtcdServer) purgeFile() {
 	}
 }
 
+// ID 返回节点ID
 func (s *EtcdServer) ID() types.ID { return s.id }
 
+// Cluster 返回集群ID
 func (s *EtcdServer) Cluster() api.Cluster { return s.cluster }
 
 func (s *EtcdServer) ApplyWait() <-chan struct{} { return s.applyWait.Wait(s.getCommittedIndex()) }
