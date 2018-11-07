@@ -21,6 +21,7 @@ import (
 	pb "github.com/coreos/etcd/raft/raftpb"
 )
 
+// raftlog 实现raft日志操作
 type raftLog struct {
 	// storage contains all stable entries since the last snapshot.
 	storage Storage

@@ -106,6 +106,7 @@ func (st StateType) String() string {
 }
 
 // Config contains the parameters to start a raft.
+// Config包含启动raft所需要的参数，外部可调用
 type Config struct {
 	// ID is the identity of the local raft. ID cannot be 0.
 	ID uint64
@@ -193,6 +194,7 @@ type Config struct {
 	DisableProposalForwarding bool
 }
 
+// 校验配置
 func (c *Config) validate() error {
 	if c.ID == None {
 		return errors.New("cannot use none as id")
@@ -225,6 +227,7 @@ func (c *Config) validate() error {
 	return nil
 }
 
+// raft 具体实现raft算法的结构体
 type raft struct {
 	id uint64
 
@@ -287,6 +290,7 @@ type raft struct {
 	logger Logger
 }
 
+// raft的构造函数，传入参数为Config
 func newRaft(c *Config) *raft {
 	if err := c.validate(); err != nil {
 		panic(err.Error())
@@ -754,10 +758,14 @@ func (r *raft) Step(m pb.Message) error {
 	switch {
 	case m.Term == 0:
 		// local message
+		// 消息节点Term大于当前节点
 	case m.Term > r.Term:
 		if m.Type == pb.MsgVote || m.Type == pb.MsgPreVote {
+			// context包含campaignTransfer字符串时表示强制进行选举
 			force := bytes.Equal(m.Context, []byte(campaignTransfer))
+			// 检查是否在租约期以内
 			inLease := r.checkQuorum && r.lead != None && r.electionElapsed < r.electionTimeout
+			// 如果非强制并且在租约期以内，则不做任何操作
 			if !force && inLease {
 				// If a server receives a RequestVote request within the minimum election timeout
 				// of hearing from a current leader, it does not update its term or grant its vote
@@ -766,6 +774,7 @@ func (r *raft) Step(m pb.Message) error {
 				return nil
 			}
 		}
+		// 注意 default永远走不到
 		switch {
 		case m.Type == pb.MsgPreVote:
 			// Never change our term in response to a PreVote
@@ -840,6 +849,9 @@ func (r *raft) Step(m pb.Message) error {
 		}
 		// The m.Term > r.Term clause is for MsgPreVote. For MsgVote m.Term should
 		// always equal r.Term.
+		// 如果当前没有给任何节点投票（r.Vote == None）或者投票的节点term大于本节点的（m.Term > r.Term）
+		// 或者是之前已经投票的节点（r.Vote == m.From）
+		// 同时(&&)还满足该节点的消息是最新的（r.raftLog.isUpToDate(m.Index, m.LogTerm)），那么就接收这个节点的投票
 		if (r.Vote == None || m.Term > r.Term || r.Vote == m.From) && r.raftLog.isUpToDate(m.Index, m.LogTerm) {
 			r.logger.Infof("%x [logterm: %d, index: %d, vote: %x] cast %s for %x [logterm: %d, index: %d] at term %d",
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
@@ -859,6 +871,7 @@ func (r *raft) Step(m pb.Message) error {
 				r.Vote = m.From
 			}
 		} else {
+			// 否则拒绝投票
 			r.logger.Infof("%x [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d",
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(pb.Message{To: m.From, Term: r.Term, Type: voteRespMsgType(m.Type), Reject: true})
@@ -1048,14 +1061,17 @@ func stepLeader(r *raft, m pb.Message) {
 		leadTransferee := m.From
 		lastLeadTransferee := r.leadTransferee
 		if lastLeadTransferee != None {
+			// 当前正在进行leader迁移，且节点相同
 			if lastLeadTransferee == leadTransferee {
 				r.logger.Infof("%x [term %d] transfer leadership to %x is in progress, ignores request to same node %x",
 					r.id, r.Term, leadTransferee, leadTransferee)
 				return
 			}
+			// 当前正在进行leader迁移，且节点不同，则终止当前的leader迁移
 			r.abortLeaderTransfer()
 			r.logger.Infof("%x [term %d] abort previous transferring leadership to %x", r.id, r.Term, lastLeadTransferee)
 		}
+		// 要迁移的新节点就是当前的leader节点
 		if leadTransferee == r.id {
 			r.logger.Debugf("%x is already leader. Ignored transferring leadership to self", r.id)
 			return
@@ -1100,6 +1116,7 @@ func stepCandidate(r *raft, m pb.Message) {
 		r.becomeFollower(m.Term, m.From)
 		r.handleSnapshot(m)
 	case myVoteRespType:
+		// 计算当前集群有多少节点给自己投票
 		gr := r.poll(m.From, m.Type, !m.Reject)
 		r.logger.Infof("%x [quorum:%d] has received %d %s votes and %d vote rejections", r.id, r.quorum(), gr, m.Type, len(r.votes)-gr)
 		switch r.quorum() {
@@ -1110,7 +1127,7 @@ func stepCandidate(r *raft, m pb.Message) {
 				r.becomeLeader()
 				r.bcastAppend()
 			}
-		case len(r.votes) - gr:
+		case len(r.votes) - gr: // 没有超过半数同意
 			r.becomeFollower(r.Term, None)
 		}
 	case pb.MsgTimeoutNow:
