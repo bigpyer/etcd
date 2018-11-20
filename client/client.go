@@ -551,6 +551,7 @@ func (c *simpleHTTPClient) Do(ctx context.Context, act httpAction) (*http.Respon
 
 	reqcancel := requestCanceler(c.transport, req)
 
+	// 处理逻辑
 	rtchan := make(chan roundTripResponse, 1)
 	go func() {
 		resp, err := c.transport.RoundTrip(req)
@@ -561,11 +562,14 @@ func (c *simpleHTTPClient) Do(ctx context.Context, act httpAction) (*http.Respon
 	var resp *http.Response
 	var err error
 
+	// 超时机制
+	// 注意这里需要判定hctx和ctx两个err，如果上层传入了一个自定义context.WitTimeout()且时间比hctx短，则ctx优先超时，并且每一个cancel都必须得到调用，否则导致资源泄露
 	select {
 	case rtresp := <-rtchan:
 		resp, err = rtresp.resp, rtresp.err
 	case <-hctx.Done():
 		// cancel and wait for request to actually exit before continuing
+		// cancel http request
 		reqcancel()
 		rtresp := <-rtchan
 		resp = rtresp.resp
